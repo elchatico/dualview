@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon, ScreenShareIcon, StopScreenShareIcon, CopyIcon, RefreshIcon } from './components/icons';
+import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon, ScreenShareIcon, StopScreenShareIcon, CopyIcon, RefreshIcon, DisconnectedIcon } from './components/icons';
 
 // STUN server configuration
 const servers = {
@@ -80,9 +80,11 @@ interface VideoPlayerProps {
   stream: MediaStream | null;
   label: string;
   muted?: boolean;
+  connectionLost?: boolean;
+  onRestart?: () => void;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ stream, label, muted = false }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ stream, label, muted = false, connectionLost = false, onRestart }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -94,10 +96,22 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ stream, label, muted = false 
   return (
     <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg relative aspect-video flex items-center justify-center">
       <video ref={videoRef} autoPlay playsInline muted={muted} className="w-full h-full object-cover"></video>
-      <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-md font-semibold">
+      <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-md font-semibold z-10">
         {label}
       </div>
-      {!stream && (
+      {connectionLost ? (
+        <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center text-center p-4 z-20">
+            <DisconnectedIcon />
+            <h3 className="text-xl font-bold mt-4 text-gray-100">Connection Lost</h3>
+            <p className="text-gray-400 mt-1">The connection to the other user was interrupted.</p>
+            <button
+                onClick={onRestart}
+                className="mt-6 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500"
+            >
+                Restart Connection
+            </button>
+        </div>
+      ) : !stream && (
         <div className="absolute inset-0 flex items-center justify-center text-gray-500">
            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M15 10l4.55a1 1 0 011.45.89V18a1 1 0 01-1.45.89L15 15M4 10h6.586a1 1 0 01.707.293l3.414 3.414a1 1 0 010 1.414l-3.414 3.414a1 1 0 01-.707.293H4a1 1 0 01-1-1V11a1 1 0 011-1z"></path></svg>
         </div>
@@ -149,6 +163,7 @@ export default function App() {
     const [isCameraStarting, setIsCameraStarting] = useState(false);
     const [isScreenStarting, setIsScreenStarting] = useState(false);
     const [useSdpCompression, setUseSdpCompression] = useState(true);
+    const [hasConnected, setHasConnected] = useState(false);
 
     // Chat state
     const [dataChannelState, setDataChannelState] = useState<'closed' | 'connecting' | 'open'>('closed');
@@ -184,6 +199,9 @@ export default function App() {
         pc.oniceconnectionstatechange = () => {
             setConnectionState(pc.iceConnectionState);
             setStatusText(`ICE Connection State: ${pc.iceConnectionState}`);
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                setHasConnected(true);
+            }
         };
 
         pc.onicecandidate = (event) => {
@@ -488,6 +506,7 @@ export default function App() {
         setMessages([]);
         setChatMessage('');
         setDataChannelState('closed');
+        setHasConnected(false);
 
         initializePeerConnection();
     };
@@ -511,6 +530,10 @@ export default function App() {
         });
     };
 
+    const connectionLost =
+        (hasConnected && ['disconnected', 'closed'].includes(connectionState)) ||
+        connectionState === 'failed';
+
     return (
         <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
@@ -530,8 +553,8 @@ export default function App() {
                         {/* Remote Streams */}
                         <div className="space-y-4">
                             <h2 className="text-xl font-semibold text-gray-300 border-b-2 border-gray-700 pb-2">Remote Streams</h2>
-                            <VideoPlayer stream={remoteCamStream} label="Remote Camera" />
-                            <VideoPlayer stream={remoteScreenStream} label="Remote Screen" />
+                            <VideoPlayer stream={remoteCamStream} label="Remote Camera" connectionLost={connectionLost} onRestart={resetConnection} />
+                            <VideoPlayer stream={remoteScreenStream} label="Remote Screen" connectionLost={connectionLost} onRestart={resetConnection} />
                         </div>
                     </div>
 
