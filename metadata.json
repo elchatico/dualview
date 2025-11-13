@@ -1,0 +1,5 @@
+{
+  "name": "DualView Connect",
+  "description": "A peer-to-peer video and screen-sharing web app using WebRTC for manual connections. Share your camera and screen with another user by simply copying and pasting connection details, with no server or backend required.",
+  "requestFramePermissions": []
+}
